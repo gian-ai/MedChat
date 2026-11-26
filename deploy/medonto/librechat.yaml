@@ -1,0 +1,53 @@
+# Only the ontology-backed model, and nothing that can't be de-identified in the browser.
+version: 1.3.17
+cache: true
+interface:
+  fileSearch: false
+  webSearch: false
+  fileCitations: false
+  runCode: false
+  artifacts: false
+  memories: false
+  agents: false
+  prompts: false
+  parameters: false
+  presets: false
+  modelSelect: false
+  sidePanel: false
+  multiConvo: false
+  marketplace:
+    use: false
+  termsOfService:
+    modalAcceptance: false
+fileConfig:
+  endpoints:
+    default:
+      disabled: true
+speech:
+  speechTab:
+    speechToText: false
+    textToSpeech: false
+endpoints:
+  custom:
+    - name: Medical Ontology
+      apiKey: ${MEDONTO_API_KEY}
+      # This gateway looks every message up over MCP, because MedGemma can't call tools.
+      baseURL: http://api:8000/v1
+      models:
+        default: [medgemma-ontology]
+        fetch: false
+      titleConvo: true
+      titleModel: medgemma-direct
+      modelDisplayLabel: MedGemma + Ontology
+      dropParams: [tools, tool_choice, frequency_penalty, presence_penalty, stop, user]
+modelSpecs:
+  enforce: true
+  prioritize: true
+  list:
+    - name: medgemma-ontology
+      label: MedGemma + Ontology
+      description: Terminology reference from the medical ontology, not clinical advice.
+      default: true
+      preset:
+        endpoint: Medical Ontology
+        model: medgemma-ontology
