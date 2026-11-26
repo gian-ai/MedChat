@@ -1,13 +1,14 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { useRecoilValue } from 'recoil';
 import { useForm } from 'react-hook-form';
-import { Alert, Button, TextareaAutosize } from '@librechat/client';
+import { Alert, Button, TextareaAutosize, useToastContext } from '@librechat/client';
 import { useUpdateMessageMutation } from 'librechat-data-provider/react-query';
 import type { TEditProps } from '~/common';
 import { useMessagesOperations, useMessagesConversation } from '~/Providers';
 import { findRerunParent } from './rerunParent';
 import { useGetAddedConvo } from '~/hooks/Chat';
 import { useLocalize } from '~/hooks';
+import { DRAFT, deidentify } from '~/deid';
 import Container from './Container';
 import { cn } from '~/utils';
 import store from '~/store';
@@ -26,6 +27,7 @@ const EditMessage = ({
   const [saveError, setSaveError] = useState(false);
   const { conversation } = useMessagesConversation();
   const { getMessages, setMessages } = useMessagesOperations();
+  const { showToast } = useToastContext();
 
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -136,6 +138,19 @@ const EditMessage = ({
      *  so the index stays put and the thread follows the appended child. */
     enterEdit(true);
   };
+
+  /** An edited message is new text: it goes through de-identification like any other. */
+  const cleaned =
+    <T,>(submit: (data: { text: string }) => T) =>
+    async (data: { text: string }) => {
+      try {
+        const existing = (getMessages() ?? []).map((item) => item.text ?? '');
+        const result = await deidentify(data.text, conversationId ?? DRAFT, existing);
+        return submit({ ...data, text: result.text });
+      } catch (error) {
+        showToast({ message: (error as Error).message, status: 'error' });
+      }
+    };
 
   const updateMessage = async (data: { text: string }) => {
     setSaveError(false);
@@ -279,7 +294,7 @@ const EditMessage = ({
               size="sm"
               variant="outline"
               disabled={isSubmitting || updateMessageMutation.isLoading || !isDirty || !isValid}
-              onClick={handleSubmit(updateMessage)}
+              onClick={handleSubmit(cleaned(updateMessage))}
             >
               {updateMessageMutation.isLoading
                 ? localize('com_ui_saving')
@@ -302,7 +317,7 @@ const EditMessage = ({
                   updateMessageMutation.isLoading ||
                   (isUserTurn && isDirty && !isValid)
                 }
-                onClick={isUserTurn ? handleSubmit(resubmitMessage) : rerunResponse}
+                onClick={isUserTurn ? handleSubmit(cleaned(resubmitMessage)) : rerunResponse}
               >
                 {isDirty && isUserTurn ? localize('com_ui_update_rerun') : localize('com_ui_rerun')}
               </Button>

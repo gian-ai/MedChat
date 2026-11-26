@@ -26,8 +26,9 @@ interface SourceHovercardProps {
   fileRelevance?: number;
 }
 
-function getFaviconUrl(domain: string) {
-  return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+// Upstream asked Google for this icon, which told Google what was being looked up (R3).
+function getFaviconUrl(_domain: string) {
+  return '/assets/favicon-32x32.png';
 }
 
 export function getCleanDomain(url: string) {

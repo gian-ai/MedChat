@@ -1,0 +1,52 @@
+# LibreChat beside Open WebUI, talking to the ontology gateway in ~/code/med-ontology.
+# Built from this folder, so nothing runs from LibreChat's own image registry.
+name: librechat-medonto
+services:
+  # Not called "api": that name has to reach the ontology gateway on the shared network.
+  librechat:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: librechat-deid:v0.8.8
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+    ports:
+      - "192.168.8.10:3080:3080"
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3080"
+      MONGO_URI: mongodb://mongodb:27017/LibreChat
+      SEARCH: "false"
+      ENDPOINTS: custom
+      NO_INDEX: "true"
+      ALLOW_REGISTRATION: "false"
+      ALLOW_SOCIAL_LOGIN: "false"
+      ALLOW_SOCIAL_REGISTRATION: "false"
+      ALLOW_PASSWORD_RESET: "false"
+      ALLOW_SHARED_LINKS: "false"
+      ALLOW_SHARED_LINKS_PUBLIC: "false"
+      CONFIG_PATH: /app/librechat.yaml
+    volumes:
+      - ./librechat.yaml:/app/librechat.yaml:ro
+      - ../../../med-ontology/data/deid-model:/app/client/dist/models/deid:ro
+      - logs:/app/logs
+      - uploads:/app/uploads
+    networks:
+      - default
+      - medonto
+  mongodb:
+    image: mongo:8.0.20
+    restart: unless-stopped
+    command: mongod --noauth
+    volumes:
+      - mongo:/data/db
+volumes:
+  mongo:
+  logs:
+  uploads:
+networks:
+  medonto:
+    external: true
+    name: med-ontology_default

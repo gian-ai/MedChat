@@ -2,6 +2,7 @@ import { memo, useRef, useMemo, useEffect, useState, useCallback } from 'react';
 import { useWatch } from 'react-hook-form';
 import { useRecoilState, useRecoilValue, useRecoilCallback } from 'recoil';
 import { Constants, isAssistantsEndpoint, isAgentsEndpoint } from 'librechat-data-provider';
+import { useToastContext } from '@librechat/client';
 import { composerSurfaceClasses, composerSurfaceShadow, TextareaAutosize } from '@librechat/client';
 import type { TChatProject, TMessage, TConversation } from 'librechat-data-provider';
 import type { SetterOrUpdater } from 'recoil';
@@ -54,6 +55,8 @@ import PendingQuoteChips from './PendingQuoteChips';
 import AttachFileChat from './Files/AttachFileChat';
 import CodeWorkspaceMenu from './CodeWorkspaceMenu';
 import useSteering from '~/hooks/Chat/useSteering';
+import { DRAFT, deidentify, preloadDeid } from '~/deid';
+import { BLOCKED_EVENT } from '~/deid/gate';
 import CodeApprovalMenu from './CodeApprovalMenu';
 import FileFormChat from './Files/FileFormChat';
 import InFlightSteers from './InFlightSteers';
@@ -643,10 +646,41 @@ const ChatForm = memo(function ChatForm({
     [answerMode, steering, submitMessage, methods, index],
   );
 
+  const deidBusy = useRef(false);
+  const { showToast } = useToastContext();
+  const { getMessages } = useChatContext();
+  useEffect(() => {
+    preloadDeid();
+    const onBlocked = (event: Event) =>
+      showToast({ message: (event as CustomEvent<string>).detail, status: 'error' });
+    window.addEventListener(BLOCKED_EVENT, onBlocked);
+    return () => window.removeEventListener(BLOCKED_EVENT, onBlocked);
+  }, [showToast]);
+
   return (
     <form
-      onSubmit={methods.handleSubmit((data) => {
-        submitComposerText(data);
+      onSubmit={methods.handleSubmit(async (data) => {
+        // Cleaned here, so every route after this (send, queue, steer) only ever has clean text.
+        if (deidBusy.current) {
+          return;
+        }
+        deidBusy.current = true;
+        try {
+          const existing = (getMessages() ?? []).map((message) => message.text ?? '');
+          const cleaned = await deidentify(data.text, conversationId ?? DRAFT, existing);
+          if (cleaned.replaced > 0) {
+            showToast({
+              message: `Removed ${cleaned.replaced} possible identifier(s) before sending. Check the message for any it missed.`,
+              status: 'info',
+            });
+          }
+          submitComposerText({ ...data, text: cleaned.text });
+        } catch (error) {
+          // Not sent, and the text stays in the box.
+          showToast({ message: (error as Error).message, status: 'error' });
+        } finally {
+          deidBusy.current = false;
+        }
       })}
       className={cn(
         /* `margin-bottom` is animated as well as `max-width`: it is what carries

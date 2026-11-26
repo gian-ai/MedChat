@@ -1,5 +1,6 @@
 import './polyfills/storage';
 import './polyfills/regeneratorRuntime';
+import { installDeidGate } from './deid/gate';
 import { createRoot } from 'react-dom/client';
 import { initializeI18n } from './locales/i18n';
 import App from './App';
@@ -15,6 +16,9 @@ window.addEventListener('vite:preloadError', (event) => {
     event.preventDefault();
   }
 });
+
+// Before anything else runs, so no request can go out ahead of it.
+installDeidGate();
 
 const container = document.getElementById('root');
 const root = createRoot(container);

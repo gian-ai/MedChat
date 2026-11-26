@@ -72,6 +72,18 @@ export default defineConfig(({ command }) => ({
   plugins: [
     react(),
     {
+      name: 'deid-runtime',
+      apply: 'build',
+      closeBundle() {
+        const source = path.resolve(import.meta.dirname, '../node_modules/onnxruntime-web/dist');
+        const target = path.resolve(import.meta.dirname, 'dist/wasm');
+        fs.mkdirSync(target, { recursive: true });
+        for (const file of fs.readdirSync(source).filter((name) => name.includes('.jsep.'))) {
+          fs.copyFileSync(path.join(source, file), path.join(target, file));
+        }
+      },
+    },
+    {
       name: 'node-polyfills-shims-resolver',
       resolveId(id) {
         return NODE_POLYFILL_SHIMS[id] ?? null;
@@ -430,7 +442,10 @@ export default defineConfig(({ command }) => ({
     },
     chunkSizeWarningLimit: 1500,
   },
+  // De-identification: the runtime is served from this deployment (see docs/BROWSER_DEID_STANDARD.md).
+  worker: { format: 'es' },
   resolve: {
+    conditions: ['onnxruntime-web-use-extern-wasm'],
     alias: {
       '~': path.join(import.meta.dirname, 'src/'),
       $fonts: path.resolve(import.meta.dirname, 'public/fonts'),
