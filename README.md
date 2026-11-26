@@ -1,264 +1,148 @@
-<p align="center">
-  <a href="https://librechat.ai">
-    <img src="client/public/assets/logo.svg" height="256">
-  </a>
-  <h1 align="center">
-    <a href="https://librechat.ai">LibreChat</a>
-  </h1>
-</p>
+# MedChat
 
-<p align="center">
-  <strong>English</strong> ·
-  <a href="README.zh.md">中文</a>
-</p>
+A medical chat interface that removes patient identifiers **in the browser, before a message leaves the user's device**. It's built on [LibreChat](https://github.com/LibreChat-AI/LibreChat) and aimed at two uses:
 
-<p align="center">
-  <a href="https://discord.librechat.ai"> 
-    <img
-      src="https://img.shields.io/discord/1086345563026489514?label=&logo=discord&style=for-the-badge&logoWidth=20&logoColor=white&labelColor=000000&color=blueviolet">
-  </a>
-  <a href="https://www.youtube.com/@LibreChat"> 
-    <img
-      src="https://img.shields.io/badge/YOUTUBE-red.svg?style=for-the-badge&logo=youtube&logoColor=white&labelColor=000000&logoWidth=20">
-  </a>
-  <a href="https://docs.librechat.ai"> 
-    <img
-      src="https://img.shields.io/badge/DOCS-blue.svg?style=for-the-badge&logo=read-the-docs&logoColor=white&labelColor=000000&logoWidth=20">
-  </a>
-  <a aria-label="Sponsors" href="https://github.com/sponsors/danny-avila">
-    <img
-      src="https://img.shields.io/badge/SPONSORS-brightgreen.svg?style=for-the-badge&logo=github-sponsors&logoColor=white&labelColor=000000&logoWidth=20">
-  </a>
-</p>
+- **Privacy-focused medical chatbots**, where what people type about themselves or their patients shouldn't reach a server, a database or a model provider with names, dates and record numbers attached.
+- **Teaching medical AI best practices.** Every safeguard here is visible and testable, so students and teams can see what a careful medical AI interface does, and where its limits are.
 
-<p align="center">
-<a href="https://railway.com/deploy/librechat-official?referralCode=HI9hWz&utm_medium=integration&utm_source=readme&utm_campaign=librechat">
-  <img src="https://railway.com/button.svg" alt="Deploy on Railway" height="30">
-</a>
-<a href="https://zeabur.com/templates/0X2ZY8">
-  <img src="https://zeabur.com/button.svg" alt="Deploy on Zeabur" height="30"/>
-</a>
-<a href="https://template.cloud.sealos.io/deploy?templateName=librechat">
-  <img src="https://raw.githubusercontent.com/labring-actions/templates/main/Deploy-on-Sealos.svg" alt="Deploy on Sealos" height="30">
-</a>
-</p>
+> **Status: research prototype.** MedChat's de-identification has been tested on made-up notes only. It is not a HIPAA, GDPR or medical-device certification, and it does not catch every identifier. Read [What MedChat doesn't do](#what-medchat-doesnt-do) before putting it in front of patients.
 
-<p align="center">
-  <a href="https://www.librechat.ai/docs/translation">
-    <img 
-      src="https://img.shields.io/badge/dynamic/json.svg?style=for-the-badge&color=2096F3&label=locize&query=%24.translatedPercentage&url=https://api.locize.app/badgedata/4cb2598b-ed4d-469c-9b04-2ed531a8cb45&suffix=%+translated" 
-      alt="Translation Progress">
-  </a>
-</p>
+## What happens to a message
 
-## 🚀 What's New in v0.8.8
+```text
+You type:   Patient Sarah Thompson, DOB 04/12/1958, called 415-555-0182 about her metformin.
+Sent:       Patient [PATIENT_1], DOB [DATE_1], called [PHONE_1] about her metformin.
+```
 
-- **Agent Management API (beta):** Create, discover, update, and delete Agents; manage Agent files and Skills; and authenticate machine clients through deployment-bound OIDC identities while preserving existing role and Agent access controls. Public OpenAPI and Swagger UI cover inference, events, Agent management, and Skill management.
-- **Attached workspaces (highly experimental):** Select or save a per-Agent default workspace for each managed or personal code worker, then let Agents inspect trees, read and search files, author changes, and run Bash with bounded timeouts. Personal workers support bounded self-service enrollment, readiness status, and per-Agent Git identity.
-- **Background tool controls:** Optionally cancel ordinary background tools, including attached Bash, while keeping detached Subagent execution independent.
-- **Code approval controls:** Choose **Ask**, **Allow**, or **Deny** for file writes and command execution where administrators permit it, including a **Full access** mode for trusted attached environments. File Search and Run Code also honor role grants.
-- **Manual context compaction:** Start a summarize-only turn before the context window fills while preserving recent conversation content according to the deployment's summarization policy.
-- **Context Usage:** Inspect dialogue, retained tool traffic, Agent instructions, cache, cost, and runway pressure without double-counting category subsets.
-- **Unified attachments:** Upload once and let LibreChat route content to the model or extracted text, then provision File Search and Code tools only when needed.
-- **Models:** Added GPT-6 Astra and GPT-6.1 Sol, with Responses API routing and tool-call support.
-- **Agent and chat UI:** Unified tool activity, reasoning, search, and Agent workflows; added one draggable Pinned section for chats and favorites, morphing state icons, high-contrast themes, rich-text message copying, clearer sidebar titles, and refined live phase layouts.
-- **Observability:** Inspect ordered model conversations, tool rounds, and costs in the Trace Viewer; export correlated application logs through OpenTelemetry, configure allowlisted Langfuse trace identity and metadata, tag browser diagnostics with client build IDs, and scope Insights to authorized Agents.
-- **Reliability and security:** Strengthened Agent continuation and checkpoint recovery, Redis liveness detection, DocumentDB coordination, OpenID and MCP OAuth sessions, shared-link throttling, tenant isolation, attachment bounds, and upload error handling.
+1. A de-identification model runs **inside the browser**, in a Web Worker. It's a token-classification model ([obi/deid_roberta_i2b2](https://huggingface.co/obi/deid_roberta_i2b2), quantized to ONNX), served by your own deployment. Pattern rules run alongside it for structured identifiers.
+2. Each identifier becomes a placeholder such as `[PATIENT_1]`. The same value keeps the same number throughout a chat.
+3. The chat shows the cleaned text, and a notice says how many identifiers were removed, so the user can spot anything that was missed.
+4. The link between placeholders and real values stays **in browser memory only**. It's never stored or sent, and it's gone when the page reloads.
+5. Only the cleaned text goes to the server, the database and the model.
 
-Read the [full v0.8.8 changelog](https://www.librechat.ai/changelog/v0.8.8).
+Medical codes in standard forms are kept, so `SNOMED:44054006`, `E11.9` and `4548-4` reach the model intact.
 
-# ✨ Features
+### What gets replaced
 
-- 🖥️ **UI & Experience** inspired by ChatGPT with enhanced design and features
+| Placeholder | Examples |
+|---|---|
+| `[PATIENT_n]`, `[CLINICIAN_n]` | People's names |
+| `[FACILITY_n]`, `[ORG_n]`, `[LOCATION_n]` | Hospitals, organizations, towns, addresses |
+| `[DATE_n]`, `[AGE_n]` | Dates in English, Spanish and Italian formats; ages |
+| `[PHONE_n]`, `[EMAIL_n]`, `[URL_n]`, `[IP_n]` | Contact details and addresses |
+| `[ID_n]` | Record numbers (MRN, historia clínica, cartella clinica), US SSN, Italian codice fiscale, Spanish DNI and NIE |
+| `[OTHER_n]` | Other identifying details the model flags |
 
-- 🤖 **AI Model Selection**:  
-  - Anthropic (Claude), AWS Bedrock, OpenAI, Azure OpenAI, Google, Vertex AI, OpenAI Responses API (incl. Azure)
-  - [Custom Endpoints](https://www.librechat.ai/docs/quick_start/custom_endpoints): Use any OpenAI-compatible API with LibreChat, no proxy required
-  - Compatible with [Local & Remote AI Providers](https://www.librechat.ai/docs/configuration/librechat_yaml/ai_endpoints):
-    - Ollama, [AMD Lemonade](https://lemonade-server.ai/), groq, Cohere, Mistral AI, Apple MLX, koboldcpp, together.ai,
-    - OpenRouter, Helicone, Perplexity, ShuttleAI, Deepseek, Qwen, and more
+## Text, images and voice
 
-- 🔧 **[Code Interpreter API](https://www.librechat.ai/docs/features/code_interpreter)**: 
-  - Secure, Sandboxed Execution in Python, Node.js (JS/TS), Go, C/C++, Java, PHP, Rust, and Fortran
-  - Seamless File Handling: Upload, process, and download files directly
-  - No Privacy Concerns: Fully isolated and secure execution
-  - Open-Source & Self-Hostable: powered by [ClickHouse/code-interpreter](https://github.com/ClickHouse/code-interpreter)
+| Input | What MedChat does |
+|---|---|
+| Typed messages, edits, regenerations, queued messages | De-identified in the browser before sending |
+| Images and file uploads | **Refused** in the browser. They can't be de-identified yet, so they never leave the device |
+| Voice input | **Refused** in the browser, for the same reason |
 
-- 🔦 **Agents & Tools Integration**:  
-  - **[LibreChat Agents](https://www.librechat.ai/docs/features/agents)**:
-    - No-Code Custom Assistants: Build specialized, AI-driven helpers
-    - Agent Marketplace: Discover and deploy community-built agents
-    - Collaborative Sharing: Share agents with specific users and groups
-    - Flexible & Extensible: Use MCP Servers, tools, file search, code execution, and more
-    - [Skills](https://www.librechat.ai/docs/features/skills): Create reusable `SKILL.md` instruction bundles for manual, automatic, or always-on agent workflows
-    - [Agent Plugins](https://www.librechat.ai/docs/features/agent_plugins): Experimentally bundle deployment Skills and MCP servers into startup-loaded packages
-    - [Subagents](https://www.librechat.ai/docs/features/subagents): Delegate focused work to isolated child agent runs with their own context windows
-    - Agent Management API: Automate Agent, file, and Skill management with deployment-bound OIDC clients
-    - Attached Code Workspaces: Let Agents inspect, search, edit, and run commands in managed or personal workspaces (highly experimental)
-    - Compatible with Custom Endpoints, OpenAI, Azure, Anthropic, AWS Bedrock, Google, Vertex AI, Responses API, and more
-    - [Model Context Protocol (MCP) Support](https://modelcontextprotocol.io/clients#librechat) for Tools
+Image and document de-identification, including DICOM, is the first item on the [roadmap](#roadmap).
 
-- 🔍 **Web Search**:  
-  - Search the internet and retrieve relevant information to enhance your AI context
-  - Combines search providers, content scrapers, and result rerankers for optimal results
-  - **Customizable Jina Reranking**: Configure custom Jina API URLs for reranking services
-  - **[Learn More →](https://www.librechat.ai/docs/features/web_search)**
+## Medical AI best practices, built in
 
-- 🪄 **Generative UI with Code Artifacts**:  
-  - [Code Artifacts](https://youtu.be/GfTj7O4gmd0?si=WJbdnemZpJzBrJo3) create React, HTML, and Mermaid content directly in chat
-  - Open previews fullscreen and export Mermaid diagrams as SVG or PNG
+Each practice below is enforced in code. The requirement numbers refer to the draft standard in [docs/BROWSER_DEID_STANDARD.md](docs/BROWSER_DEID_STANDARD.md).
 
-- 🎨 **Image Generation & Editing**
-  - Text-to-image and image-to-image with [GPT-Image-1](https://www.librechat.ai/docs/features/image_gen#1--openai-image-tools-recommended)
-  - Text-to-image with [DALL-E (3/2)](https://www.librechat.ai/docs/features/image_gen#2--dalle-legacy), [Stable Diffusion](https://www.librechat.ai/docs/features/image_gen#3--stable-diffusion-local), [Flux](https://www.librechat.ai/docs/features/image_gen#4--flux), or any [MCP server](https://www.librechat.ai/docs/features/image_gen#5--model-context-protocol-mcp)
-  - Produce stunning visuals from prompts or refine existing images with a single instruction
+| Practice | How MedChat applies it |
+|---|---|
+| **Minimize data at the source** | Identifiers are removed before text enters chat state, so history, titles and model requests never see them (R1) |
+| **Fail closed** | If de-identification can't run, the message isn't sent. The text stays in the box and the user is told why. There's no fallback to raw text (R2) |
+| **No hidden third parties** | The model, tokenizer and runtime are served by your deployment. Using a chat makes no requests to other hosts. That includes icons: upstream LibreChat asks Google for source favicons, which reveals what's being looked up (R3) |
+| **Close what you can't protect** | Uploads and voice are refused at the network layer, so no feature can get around it (R4) |
+| **Show the user what was sent** | The chat displays the cleaned text, not the original (R7) |
+| **Measure and publish accuracy** | Results per language are published, with their limits (R8) |
+| **Keep the clinical meaning** | Codes and medical terms survive de-identification (R9) |
+| **Ground answers, cite sources** | The example deployment answers from a terminology database and lists every concept it used, instead of answering from the model's memory |
+| **Stay in scope** | The example model is labelled "terminology reference, not clinical advice". Interface features that could carry identifiers (agents, memories, file search, web search, shared links) are switched off |
+| **Keep a human responsible** | The interface tells users to check for missed identifiers. No automated method catches everything |
 
-- 💾 **Presets & Context Management**:  
-  - Create, Save, & Share Custom Presets  
-  - Switch between AI Endpoints and Presets mid-chat
-  - Edit, Resubmit, and Continue Messages with Conversation branching  
-  - Create and share prompts with specific users and groups
-  - [Fork Messages & Conversations](https://www.librechat.ai/docs/features/fork) for Advanced Context control
-  - Compact long conversations on demand while preserving recent context
+### Defense in depth
 
-- 💬 **Multimodal & File Interactions**:  
-  - Upload and analyze images with Claude 3, GPT-4.5, GPT-4o, o1, Llama-Vision, and Gemini 📸  
-  - Chat with Files using Custom Endpoints, OpenAI, Azure, Anthropic, AWS Bedrock, & Google 🗃️
-  - Copy messages as formatted rich text for documents, email, and collaboration apps
+Text is cleaned twice. The composer cleans it before submission. A network gate, installed before the app renders, then checks every outgoing `fetch` and `XMLHttpRequest`. Text sent through other routes, such as edits, regenerations and queued messages, is cleaned there as well, and uploads and voice are refused there.
 
-- 🌎 **Multilingual UI**:
-  - English, 中文 (简体), 中文 (繁體), العربية, Deutsch, Español, Français, Italiano
-  - Polski, Português (PT), Português (BR), Русский, 日本語, Svenska, 한국어, Tiếng Việt
-  - Türkçe, Nederlands, עברית, Català, Čeština, Dansk, Eesti, فارسی
-  - Suomi, Magyar, Հայերեն, Bahasa Indonesia, ქართული, Latviešu, ไทย, ئۇيغۇرچە
+```text
+client/src/deid/
+├── core.ts          # patterns, protected code forms, span merging, placeholder map
+├── detect.ts        # model inference, shared by the browser worker and the eval script
+├── deid.worker.ts   # loads the model from /models/deid/ and the runtime from /wasm/; remote models off
+├── index.ts         # deidentify(), per-chat placeholder maps, fail-closed errors
+├── gate.ts          # network gate for fetch and XMLHttpRequest
+└── guard.ts         # the error type for blocked input
+```
 
-- 🧠 **Reasoning UI**:  
-  - Dynamic Reasoning UI for Chain-of-Thought/Reasoning AI models like DeepSeek-R1
+## Measured results
 
-- 🎨 **Customizable Interface**:  
-  - Customizable Dropdown & Interface that adapts to both power users and newcomers
-  - Light, dark, system, and high-contrast appearance modes
+These come from 18 made-up notes in [tools/deid-eval/notes.json](tools/deid-eval/notes.json), tested 2026-11-05. **No real clinical notes were used.** These numbers say nothing about accuracy on real notes.
 
-- 📈 **Observability**:
-  - Export traces and logs with OpenTelemetry and connect Langfuse for Agent and model insights
+| Language | Identifiers removed |
+|---|---|
+| English | 26 / 26 |
+| Spanish | 17 / 17 |
+| Italian | 17 / 17 |
 
-- 🌊 **[Resumable Streams](https://www.librechat.ai/docs/features/resumable_streams)**:  
-  - Never lose a response: AI responses automatically reconnect and resume if your connection drops
-  - Multi-Tab & Multi-Device Sync: Open the same chat in multiple tabs or pick up on another device
-  - Production-Ready: Works from single-server setups to horizontally scaled deployments with Redis
+Medical terms that had to survive: 26 / 26 kept, across all three languages.
 
-- 🗣️ **Speech & Audio**:  
-  - Chat hands-free with Speech-to-Text and Text-to-Speech  
-  - Automatically send and play Audio  
-  - Supports OpenAI, Azure OpenAI, and Elevenlabs
+An automated browser test, [tools/deid-eval/browser-test.mjs](tools/deid-eval/browser-test.mjs), records every request from sign-in onward. It also checks the database afterwards. All 20 checks passed. The full record is in [docs/BROWSER_DEID_RESULTS.md](docs/BROWSER_DEID_RESULTS.md).
 
-- 📥 **Import & Export Conversations**:  
-  - Import Conversations from LibreChat, ChatGPT, Chatbot UI  
-  - Export conversations as screenshots, markdown, text, json
+The model was trained on English clinical notes. Spanish and Italian rely more on the pattern rules, and the 34 test identifiers in those languages are far too few to judge them by.
 
-- 🔍 **Search & Discovery**:  
-  - Search all messages/conversations
+## What MedChat doesn't do
 
-- 👥 **Multi-User & Secure Access**:
-  - Multi-User, Secure Authentication with OAuth2, LDAP, & Email Login Support
-  - Built-in Moderation, and Token spend tools
+- **It doesn't catch everything.** Unusual names, misspellings and identifiers written in unexpected ways can get through. Users remain responsible for what they send.
+- **It doesn't stop identification by context.** A rare condition together with a small town can identify someone with no name attached.
+- **It doesn't make a deployment compliant.** HIPAA, GDPR and local health-data laws apply to the whole system: hosting, logging, access control, agreements with any model provider, and consent. MedChat covers one part of that.
+- **It doesn't cover images, files or voice.** It refuses them instead.
+- **It doesn't cover the whole application.** Only chat text is de-identified. Admin settings and other surfaces aren't, which is why the example deployment turns them off.
 
-- 🎛️ **[Admin Panel](https://www.librechat.ai/docs/features/admin_panel)**:
-  - Browser-based UI to manage users, groups, roles, and configuration overrides
-  - Edit settings and per-role/group permissions live, without redeploying
-  - Bundled with the Docker Compose stacks for one-command setup
+### Before putting it in front of patients
 
-- ⚙️ **Configuration & Deployment**:  
-  - Configure Proxy, Reverse Proxy, Docker, & many Deployment options  
-  - Use [S3 with CloudFront](https://www.librechat.ai/docs/configuration/cdn/cloudfront) for stable media links, edge delivery, signed cookies, and secured downloads
-  - Use completely local or deploy on the cloud
+MedChat provides the privacy layer. A patient-facing deployment still needs:
 
-- 📖 **Open-Source & Community**:  
-  - Completely Open-Source & Built in Public  
-  - Community-driven development, support, and feedback
+- clear wording that the bot isn't a clinician, and what to do in an emergency
+- a decision about what the model may and may not answer, tested before launch
+- a review by your privacy officer or legal counsel, and patient consent where required
+- testing on text that looks like what your patients will actually write, in their languages, measured the same way as above
+- accessibility review, and a way for patients to reach a person
 
-[For a thorough review of our features, see our docs here](https://docs.librechat.ai/) 📚
+## Using it for teaching
 
-## 🪶 All-In-One AI Conversations with LibreChat
+MedChat is meant to be taken apart. Some exercises:
 
-LibreChat is a self-hosted AI chat platform that unifies all major AI providers in a single, privacy-focused interface.
+1. Open the browser's developer tools on the Network tab. Send a message containing a made-up patient, then confirm that no request contains the name.
+2. Block `/models/deid/` in the browser, then try to send. You'll see the interface fail closed.
+3. Try to upload a file and watch the request get refused before it leaves the page.
+4. Run `tools/deid-eval/eval.ts` on the test notes, then write harder notes and find what gets missed.
+5. Read [docs/BROWSER_DEID_STANDARD.md](docs/BROWSER_DEID_STANDARD.md) and argue which requirements are missing.
 
-Beyond chat, LibreChat provides AI Agents, Model Context Protocol (MCP) support, Artifacts, Code Interpreter, custom actions, conversation search, and enterprise-ready multi-user authentication.
+## Running it
 
-Open source, actively developed, and built for anyone who values control over their AI infrastructure.
+MedChat runs like LibreChat, with two additions:
 
----
+1. **The de-identification model.** Serve an ONNX export of [obi/deid_roberta_i2b2](https://huggingface.co/obi/deid_roberta_i2b2) with q8 weights, in the transformers.js folder layout, at `/models/deid/`. In Docker, mount it at `/app/client/dist/models/deid`. Without it, every message is blocked, which is the fail-closed behaviour.
+2. **The browser runtime.** The client build copies ONNX Runtime's WASM files into `dist/wasm/` on its own.
 
-## 🌐 Resources
+[deploy/medonto/](deploy/medonto/) is the example deployment. It runs LibreChat and MongoDB with registration, social login, shared links and search off. It has one model, which goes through an OpenAI-compatible gateway to a medical terminology service. The gateway isn't included in this repository. Point `baseURL` in [deploy/medonto/librechat.yaml](deploy/medonto/librechat.yaml) at any OpenAI-compatible endpoint you trust. The compose file and `setup.sh` contain addresses for the original server, so change them to yours.
 
-**GitHub Repo:**
-  - **RAG API:** [github.com/LibreChat-AI/rag-api](https://github.com/LibreChat-AI/rag-api)
-  - **Website:** [github.com/LibreChat-AI/librechat.ai](https://github.com/LibreChat-AI/librechat.ai)
+```bash
+cd deploy/medonto
+./setup.sh                      # writes .env with generated secrets
+docker compose up -d --build
+```
 
-**Other:**
-  - **Website:** [librechat.ai](https://librechat.ai)
-  - **Documentation:** [librechat.ai/docs](https://librechat.ai/docs)
-  - **Blog:** [librechat.ai/blog](https://librechat.ai/blog)
+For everything else, such as configuration, authentication and endpoints, LibreChat's documentation applies: https://www.librechat.ai/docs
 
----
+## Roadmap
 
-## 📝 Changelog
+- De-identify images and documents in the browser, including DICOM, so uploads can be allowed instead of refused
+- A setting to turn de-identification on per deployment, instead of building it in unconditionally
+- Unit tests for `client/src/deid` in the client test suite
+- Evaluation on larger, realistic test sets, with results per identifier type
+- Move to a current LibreChat release. MedChat is based on v0.8.8, and upstream has since rewritten the chat composer that the de-identification hooks into
 
-Keep up with the latest updates by visiting the releases page and notes:
-- [Releases](https://github.com/LibreChat-AI/LibreChat/releases)
-- [Changelog](https://www.librechat.ai/changelog) 
+## Credits and license
 
-**⚠️ Please consult the [changelog](https://www.librechat.ai/changelog) for breaking changes before updating.**
-
----
-
-## ⭐ Star History
-
-<p align="center">
-  <a href="https://www.star-history.com/?type=date&repos=danny-avila%2FLibreChat">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=danny-avila/LibreChat&type=date&theme=dark&legend=top-left&sealed_token=CXsk3L39t1nlibOv3pQloYwrz8R_yXxCAe1X3DG8sEnmu3PZvzSRZGf7JvisknF83yXqMwR6IcuKLolIQBulChAOseTYP1TDglfT6clOHXzspF-DJhmmsnGasrGpLfCeOEU56Bx761CJp9xDxza5rbyXW3F1GqWNtDf9pMroBq86vS70ilRWu16VyucF" />
-      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=danny-avila/LibreChat&type=date&legend=top-left&sealed_token=CXsk3L39t1nlibOv3pQloYwrz8R_yXxCAe1X3DG8sEnmu3PZvzSRZGf7JvisknF83yXqMwR6IcuKLolIQBulChAOseTYP1TDglfT6clOHXzspF-DJhmmsnGasrGpLfCeOEU56Bx761CJp9xDxza5rbyXW3F1GqWNtDf9pMroBq86vS70ilRWu16VyucF" />
-      <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=danny-avila/LibreChat&type=date&legend=top-left&sealed_token=CXsk3L39t1nlibOv3pQloYwrz8R_yXxCAe1X3DG8sEnmu3PZvzSRZGf7JvisknF83yXqMwR6IcuKLolIQBulChAOseTYP1TDglfT6clOHXzspF-DJhmmsnGasrGpLfCeOEU56Bx761CJp9xDxza5rbyXW3F1GqWNtDf9pMroBq86vS70ilRWu16VyucF" />
-    </picture>
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://trendshift.io/repositories/4685" target="_blank" style="padding: 10px;">
-    <img src="https://trendshift.io/api/badge/repositories/4685" alt="LibreChat-AI%2FLibreChat | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/>
-  </a>
-  <a href="https://runacap.com/ross-index/q1-24/" target="_blank" rel="noopener" style="margin-left: 20px;">
-    <img style="width: 260px; height: 56px" src="https://runacap.com/wp-content/uploads/2024/04/ROSS_badge_white_Q1_2024.svg" alt="ROSS Index - Fastest Growing Open-Source Startups in Q1 2024 | Runa Capital" width="260" height="56"/>
-  </a>
-</p>
-
----
-
-## ✨ Contributions
-
-Contributions, suggestions, bug reports and fixes are welcome!
-
-For new features, components, or extensions, please open an issue and discuss before sending a PR.
-
-If you'd like to help translate LibreChat into your language, we'd love your contribution! Improving our translations not only makes LibreChat more accessible to users around the world but also enhances the overall user experience. Please check out our [Translation Guide](https://www.librechat.ai/docs/translation).
-
----
-
-## 💖 This project exists in its current state thanks to all the people who contribute
-
-<a href="https://github.com/LibreChat-AI/LibreChat/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=LibreChat-AI/LibreChat" />
-</a>
-
----
-
-## 🎉 Special Thanks
-
-We thank [Locize](https://locize.com) for their translation management tools that support multiple languages in LibreChat.
-
-<p align="center">
-  <a href="https://locize.com" target="_blank" rel="noopener noreferrer">
-    <img src="https://github.com/user-attachments/assets/d6b70894-6064-475e-bb65-92a9e23e0077" alt="Locize Logo" height="50">
-  </a>
-</p>
+MedChat is a fork of [LibreChat](https://github.com/LibreChat-AI/LibreChat) by Danny Avila and contributors, released under the [MIT License](LICENSE), which also covers MedChat's changes. The de-identification model is [obi/deid_roberta_i2b2](https://huggingface.co/obi/deid_roberta_i2b2) from the `obi` organization on Hugging Face, under its own license. Check it before redistributing the weights.
